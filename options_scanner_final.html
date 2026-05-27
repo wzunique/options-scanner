@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>期权异常流识别器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 12px;
+            gap: 12px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 8px;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .btn-scan {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+
+        .btn-scan:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-settings {
+            background: rgba(94, 109, 139, 0.5);
+            color: #cbd5e1;
+            padding: 8px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .stat-box {
+            background: rgba(30, 41, 59, 0.6);
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+
+        .results-container {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .result-card {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .result-symbol {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .result-score {
+            font-size: 18px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .score-excellent { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+        .score-good { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+        .score-fair { background: rgba(234, 179, 8, 0.2); color: #fbbf24; }
+        .score-poor { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+        .result-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+            gap: 6px;
+            font-size: 11px;
+        }
+
+        .metric {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 6px;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .metric > span:first-child {
+            color: #94a3b8;
+            font-size: 10px;
+        }
+
+        .metric-value {
+            color: #60a5fa;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 30px;
+            color: #94a3b8;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(59, 130, 246, 0.3);
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            width: 90%;
+            max-width: 300px;
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            border-radius: 6px;
+            background: rgba(15, 23, 42, 0.5);
+            color: #e2e8f0;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 10px;
+        }
+
+        .btn-confirm {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-cancel {
+            background: rgba(94, 109, 139, 0.5);
+            color: #cbd5e1;
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.3);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 期权异常流识别器</h1>
+            <div class="header-buttons">
+                <button class="btn-scan" id="scanBtn">🔍 开始扫描</button>
+                <button class="btn-settings" id="settingsBtn">⚙️</button>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-label">总数</div>
+                <div class="stat-value" id="totalCount">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">优秀</div>
+                <div class="stat-value" id="excellentCount" style="color: #4ade80;">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">良好</div>
+                <div class="stat-value" id="goodCount" style="color: #60a5fa;">0</div>
+            </div>
+        </div>
+
+        <div class="results-container" id="resultsContainer">
+            <div style="text-align: center; padding: 30px; color: #94a3b8;">
+                📈 点击开始扫描查看结果
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-title">⚙️ 设置后端地址</div>
+            <input type="text" class="modal-input" id="apiInput" placeholder="如：options-scanner-production-654d.up.railway.app">
+            <div class="modal-buttons">
+                <button class="btn-confirm" id="confirmBtn">保存</button>
+                <button class="btn-cancel" id="cancelBtn">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let API_BASE_URL = localStorage.getItem('API_URL') || 'https://options-scanner-production-654d.up.railway.app';
+        let isScanning = false;
+
+        function getApiUrl(endpoint) {
+            let url = API_BASE_URL;
+            if (!url.startsWith('http')) {
+                url = 'https://' + url;
+            }
+            return url + endpoint;
+        }
+
+        async function startScan() {
+            if (isScanning) return;
+            isScanning = true;
+            
+            const scanBtn = document.getElementById('scanBtn');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            scanBtn.disabled = true;
+            scanBtn.innerHTML = '<span class="spinner"></span>扫描中...';
+            resultsContainer.innerHTML = '<div class="loading"><span class="spinner"></span>正在获取期权数据...</div>';
+
+            try {
+                // 启动扫描
+                const scanRes = await fetch(getApiUrl('/api/scan'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!scanRes.ok) throw new Error('扫描启动失败');
+
+                // 轮询结果
+                let lastCount = 0;
+                for (let i = 0; i < 120; i++) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    
+                    const res = await fetch(getApiUrl('/api/results'));
+                    const data = await res.json();
+
+                    if (data.results && data.results.length > lastCount) {
+                        displayResults(data);
+                        lastCount = data.results.length;
+                    }
+
+                    if (!data.is_scanning && data.results.length > 0) {
+                        break;
+                    }
+                }
+            } catch (error) {
+                resultsContainer.innerHTML = `<div class="loading" style="color: #f87171;">❌ 错误<br><small>${error.message}</small></div>`;
+            } finally {
+                isScanning = false;
+                scanBtn.disabled = false;
+                scanBtn.innerHTML = '🔍 开始扫描';
+            }
+        }
+
+        function displayResults(data) {
+            const resultsContainer = document.getElementById('resultsContainer');
+            resultsContainer.innerHTML = '';
+
+            document.getElementById('totalCount').textContent = data.total || 0;
+            document.getElementById('excellentCount').textContent = data.excellent || 0;
+            document.getElementById('goodCount').textContent = data.good || 0;
+
+            if (!data.results || data.results.length === 0) {
+                resultsContainer.innerHTML = '<div class="loading">暂无结果</div>';
+                return;
+            }
+
+            data.results.forEach(result => {
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                const d = result.data || {};
+                
+                card.innerHTML = `
+                    <div class="result-header">
+                        <span class="result-symbol">${result.symbol}</span>
+                        <span class="result-score score-${result.status}">${result.score}</span>
+                    </div>
+                    <div class="result-metrics">
+                        <div class="metric"><span>价格</span><span class="metric-value">$${(d.current_price || 0).toFixed(2)}</span></div>
+                        <div class="metric"><span>成交</span><span class="metric-value">${(d.total_volume || 0).toLocaleString()}</span></div>
+                        <div class="metric"><span>持仓</span><span class="metric-value">${(d.total_oi || 0).toLocaleString()}</span></div>
+                        <div class="metric"><span>Call成交</span><span class="metric-value">${(d.call_volume || 0).toLocaleString()}</span></div>
+                        <div class="metric"><span>Put成交</span><span class="metric-value">${(d.put_volume || 0).toLocaleString()}</span></div>
+                        <div class="metric"><span>C/P比例</span><span class="metric-value">${(d.call_volume_ratio || 0).toFixed(2)}</span></div>
+                        <div class="metric"><span>隐波IV</span><span class="metric-value">${(d.avg_call_iv * 100 || 0).toFixed(1)}%</span></div>
+                    </div>
+                `;
+                
+                resultsContainer.appendChild(card);
+            });
+        }
+
+        document.getElementById('scanBtn').addEventListener('click', startScan);
+        
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            document.getElementById('apiInput').value = API_BASE_URL;
+            document.getElementById('settingsModal').classList.add('active');
+        });
+
+        document.getElementById('confirmBtn').addEventListener('click', () => {
+            const newUrl = document.getElementById('apiInput').value.trim();
+            if (newUrl) {
+                if (!newUrl.startsWith('http')) {
+                    API_BASE_URL = 'https://' + newUrl;
+                } else {
+                    API_BASE_URL = newUrl;
+                }
+                localStorage.setItem('API_URL', API_BASE_URL);
+                document.getElementById('settingsModal').classList.remove('active');
+            }
+        });
+
+        document.getElementById('cancelBtn').addEventListener('click', () => {
+            document.getElementById('settingsModal').classList.remove('active');
+        });
+    </script>
+</body>
+</html>
